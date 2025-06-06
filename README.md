@@ -31,7 +31,7 @@ Ideal für Smart-Home-Fans, die ein übersichtliches Dashboard zur Steuerung ihr
 
 1. **Projekt klonen**
    ```bash
-   git clone https://github.com/dein-nutzername/hue-interface.git
+   git clone https://github.com/Racermarco20/PhillipsHueControll.git
    cd PhillipsHueControll
    ```
 

@@ -42,6 +42,10 @@ Ideal für Smart-Home-Fans, die ein übersichtliches Dashboard zur Steuerung ihr
 
 3. **`.env` Datei erstellen**
 
+> ℹ️ Den Hue Application Key musst du dir manuell über die Philips Hue Developer API generieren. 
+> Eine Anleitung findest du auf der offiziellen Seite: [developers.meethue.com – Getting Started](https://developers.meethue.com/develop/hue-api-v2/getting-started/)
+
+
    Erstelle im Projektverzeichnis eine `.env` mit folgendem Inhalt:
 
    ```env
@@ -89,4 +93,4 @@ MIT – frei verwendbar, gerne mit Attribution 😊
 ## 🙋‍♂️ Autor
 
 **Marco Braun** – HTL Hollabrunn, Abteilung IT  
-📧 [Marco.Braun@it.htl-hl.ac.at](mailto:Marco.Braun@it.htl-hl.ac.at)
+📧 [marco.braun@example.com](mailto:marco.braun@example.com)

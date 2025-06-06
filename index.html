@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Hue Geräte</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+<div class="max-w-4xl mx-auto py-10 px-4">
+    <h1 class="text-3xl font-bold mb-6 text-center">Gefundene Hue Geräte</h1>
+    <div id="device-list" class="space-y-4">Lade Geräte...</div>
+</div>
+
+<!-- Slide-in Detail Panel -->
+<div id="lamp-panel"
+     class="fixed top-0 right-0 w-full max-w-md h-full bg-white shadow-xl transform translate-x-full transition-transform duration-300 z-50 flex flex-col">
+    <div class="p-4 border-b flex justify-between items-center">
+        <h2 id="panel-title" class="text-xl font-bold">Lampe bearbeiten</h2>
+        <button onclick="closePanel()" class="text-gray-500 hover:text-black text-xl">&times;</button>
+    </div>
+    <div class="p-4 space-y-6 overflow-y-auto flex-1">
+        <div>
+            <label class="text-sm font-medium text-gray-600">Farbe</label>
+            <input type="color" class="w-full h-12 rounded border mt-2" disabled>
+        </div>
+        <div>
+            <label class="text-sm font-medium text-gray-600">Helligkeit</label>
+            <input type="range" min="0" max="100" class="w-full mt-2" disabled>
+        </div>
+        <div>
+            <label class="text-sm font-medium text-gray-600">Raum</label>
+            <select class="w-full border rounded px-3 py-2 mt-2 text-sm" disabled>
+                <option>Wohnzimmer</option>
+                <option>Schlafzimmer</option>
+                <option>Flur</option>
+            </select>
+        </div>
+        <div id="ct-block" class="hidden">
+            <label class="text-sm font-medium text-gray-600">Farbtemperatur (weiß)</label>
+            <input type="range" min="153" max="500" class="w-full mt-2" id="ct-slider" disabled>
+        </div>
+
+        <div class="text-xs text-gray-400 pt-4">
+            <p>Weitere Funktionen folgen …</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function fetchDevices() {
+        try {
+            const devicesRes = await fetch("http://localhost:8000/devices");
+            const devicesData = await devicesRes.json();
+
+            const devicesWithLight = devicesData.data
+                .map(device => {
+                    const lightService = device.services?.find(s => s.rtype === "light");
+                    return lightService ? {device, rid: lightService.rid} : null;
+                })
+                .filter(Boolean);
+
+            const rids = devicesWithLight.map(d => d.rid);
+            const lightStatusRes = await fetch("http://localhost:8000/lights/status", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(rids)
+            });
+            const lightStatus = await lightStatusRes.json();
+
+            const statusMap = {};
+            lightStatus.forEach(item => statusMap[item.rid] = item.on);
+
+            const list = document.getElementById("device-list");
+            list.innerHTML = "";
+
+            devicesWithLight.forEach(({device, rid}) => {
+                const isOn = statusMap[rid] === true;
+                const toggleClass = isOn ? "translate-x-10" : "translate-x-0";
+                const buttonColor = isOn ? "bg-green-400" : "bg-gray-300";
+
+                const name = device?.metadata?.name || "Unbenannt";
+                const type = device?.type || "Unbekannt";
+                const id = device?.id || "-";
+                const product = device?.product_data?.product_name || "Unbekannt";
+
+                const div = document.createElement("div");
+                div.className = "bg-white rounded-xl shadow p-6 flex items-center justify-between hover:ring-2 hover:ring-indigo-200 transition cursor-pointer select-none";
+
+                div.innerHTML = `
+                    <div>
+                        <h3 class="text-xl font-semibold">${name}</h3>
+                        <p class="text-sm text-gray-600">Typ: ${type}</p>
+                        <p class="text-sm text-gray-600">Produkt: ${product}</p>
+                        <p class="text-xs text-gray-400 mt-1">ID: ${id}</p>
+                    </div>
+                    <button
+                        class="toggle-btn relative inline-flex h-10 w-20 items-center rounded-full ${buttonColor} transition duration-300 ease-in-out hover:ring-4 hover:ring-indigo-300"
+                        data-rid="${rid}"
+                        data-is-on="${isOn}"
+                    >
+                        <span class="toggle-circle absolute left-1 h-8 w-8 rounded-full bg-white shadow transition-transform duration-300 ease-in-out transform ${toggleClass}"></span>
+                    </button>
+                `;
+
+                div.ondblclick = () => openPanel(name, type, product, id, rid);
+
+                list.appendChild(div);
+            });
+
+            document.querySelectorAll(".toggle-btn").forEach(btn => {
+                btn.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    const circle = btn.querySelector(".toggle-circle");
+                    const rid = btn.getAttribute("data-rid");
+                    const currentState = btn.getAttribute("data-is-on") === "true";
+
+                    circle.classList.toggle("translate-x-0");
+                    circle.classList.toggle("translate-x-10");
+                    btn.classList.toggle("bg-green-400");
+                    btn.classList.toggle("bg-gray-300");
+
+                    const newState = !currentState;
+                    btn.setAttribute("data-is-on", newState);
+
+                    fetch(`http://localhost:8000/lights/${rid}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({on: {on: newState}})
+                    });
+                });
+            });
+
+        } catch (error) {
+            console.error("Fehler beim Laden der Geräte:", error);
+        }
+    }
+
+    function openPanel(name, type, product, id, rid) {
+        const panel = document.getElementById("lamp-panel");
+        panel.classList.remove("translate-x-full");
+
+        const body = panel.querySelector(".p-4.space-y-6");
+
+        // Alte Infos löschen
+        body.querySelectorAll(".live-info")?.forEach(el => el.remove());
+
+        const colorInput = body.querySelector("input[type=color]");
+        const brightnessInput = body.querySelector("input[type=range]:not(#ct-slider)");
+        const ctSlider = document.getElementById("ct-slider");
+        const roomSelect = body.querySelector("select");
+
+        colorInput.value = "#ffffff";
+        brightnessInput.value = 0;
+        roomSelect.selectedIndex = 0;
+
+        colorInput.disabled = true;
+        brightnessInput.disabled = true;
+        roomSelect.disabled = true;
+
+        const infoContainer = document.createElement("div");
+        infoContainer.className = "live-info space-y-1 text-sm text-gray-700";
+        infoContainer.innerHTML = `
+            <div><span class="font-medium">Name:</span> ${name}</div>
+            <div><span class="font-medium">Typ:</span> ${type}</div>
+            <div><span class="font-medium">Produkt:</span> ${product}</div>
+            <div><span class="font-medium">ID:</span> ${id}</div>
+        `;
+        body.insertBefore(infoContainer, body.firstChild);
+
+        fetch(`http://localhost:8000/lights/${rid}`)
+            .then(res => res.json())
+            .then(data => {
+                const light = data?.data?.[0];
+                if (!light) return;
+
+                const x = light.color?.xy?.x;
+                const y = light.color?.xy?.y;
+                const bri = light.dimming?.brightness;
+                const mirek = light.color_temperature?.mirek;
+
+                const ctBlock = document.getElementById("ct-block");
+
+                ctSlider.disabled = true;
+                ctBlock.classList.add("hidden");
+
+                if (typeof x === "number" && typeof y === "number") {
+                    const rgb = xyBriToRGB(x, y, bri ?? 100);
+                    const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+                    colorInput.value = hex;
+                    colorInput.disabled = false;
+                }
+
+                if (typeof bri === "number") {
+                    brightnessInput.value = Math.round(bri);
+                    brightnessInput.disabled = false;
+                }
+
+                if (typeof mirek === "number") {
+                    ctSlider.value = mirek;
+                    ctSlider.disabled = false;
+                    ctBlock.classList.remove("hidden");
+                }
+
+                roomSelect.disabled = false;
+
+                setupControlListeners(rid);
+            });
+    }
+
+    function setupControlListeners(rid) {
+        const colorInput = document.querySelector("input[type=color]");
+        const brightnessInput = document.querySelector("input[type=range]:not(#ct-slider)");
+        const ctSlider = document.getElementById("ct-slider");
+
+        const newColor = colorInput.cloneNode(true);
+        const newBright = brightnessInput.cloneNode(true);
+        const newCT = ctSlider.cloneNode(true);
+
+        colorInput.replaceWith(newColor);
+        brightnessInput.replaceWith(newBright);
+        ctSlider.replaceWith(newCT);
+
+        newColor.addEventListener("change", () => {
+            const rgb = hexToRgb(newColor.value);
+            const xy = rgbToXy(rgb.r, rgb.g, rgb.b);
+            fetch(`http://localhost:8000/lights/${rid}`, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({color: {xy}})
+            });
+        });
+
+        newBright.addEventListener("mouseup", () => {
+            fetch(`http://localhost:8000/lights/${rid}`, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({dimming: {brightness: parseInt(newBright.value)}})
+            });
+        });
+
+        newCT.addEventListener("mouseup", () => {
+            fetch(`http://localhost:8000/lights/${rid}`, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({color_temperature: {mirek: parseInt(newCT.value)}})
+            });
+        });
+    }
+
+    function closePanel() {
+        document.getElementById("lamp-panel").classList.add("translate-x-full");
+    }
+
+    function xyBriToRGB(x, y, bri) {
+        const z = 1.0 - x - y;
+        const Y = bri / 100;
+        const X = (Y / y) * x;
+        const Z = (Y / y) * z;
+        let r = X * 1.612 - Y * 0.203 - Z * 0.302;
+        let g = -X * 0.509 + Y * 1.412 + Z * 0.066;
+        let b = X * 0.026 - Y * 0.072 + Z * 0.962;
+        r = r <= 0.0031308 ? 12.92 * r : (1 + 0.055) * Math.pow(r, 1 / 2.4) - 0.055;
+        g = g <= 0.0031308 ? 12.92 * g : (1 + 0.055) * Math.pow(g, 1 / 2.4) - 0.055;
+        b = b <= 0.0031308 ? 12.92 * b : (1 + 0.055) * Math.pow(b, 1 / 2.4) - 0.055;
+        return {
+            r: Math.max(0, Math.min(255, Math.round(r * 255))),
+            g: Math.max(0, Math.min(255, Math.round(g * 255))),
+            b: Math.max(0, Math.min(255, Math.round(b * 255)))
+        };
+    }
+
+    function rgbToHex(r, g, b) {
+        return "#" + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+
+    function hexToRgb(hex) {
+        const bigint = parseInt(hex.slice(1), 16);
+        return {
+            r: (bigint >> 16) & 255,
+            g: (bigint >> 8) & 255,
+            b: bigint & 255
+        };
+    }
+
+    function rgbToXy(r, g, b) {
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+        g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+        b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+        const X = r * 0.6645 + g * 0.1543 + b * 0.1620;
+        const Y = r * 0.2839 + g * 0.6684 + b * 0.0477;
+        const Z = r * 0.0001 + g * 0.0723 + b * 0.9860;
+        const cx = X / (X + Y + Z);
+        const cy = Y / (X + Y + Z);
+        return {x: isNaN(cx) ? 0 : cx, y: isNaN(cy) ? 0 : cy};
+    }
+
+    fetchDevices();
+</script>
+</body>
+</html>

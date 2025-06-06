@@ -49,7 +49,7 @@ Ideal für Smart-Home-Fans, die ein übersichtliches Dashboard zur Steuerung ihr
    Erstelle im Projektverzeichnis eine `.env` mit folgendem Inhalt:
 
    ```env
-   BRIDGE_IP=192.168.1.100
+   BRIDGE_IP=ip-von-deiner-bridge
    HUE_APP_KEY=dein-hue-api-schlüssel
    ```
 

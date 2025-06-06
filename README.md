@@ -93,4 +93,4 @@ MIT – frei verwendbar, gerne mit Attribution 😊
 ## 🙋‍♂️ Autor
 
 **Marco Braun** – HTL Hollabrunn, Abteilung IT  
-📧 [marco.braun@example.com](mailto:marco.braun@example.com)
+📧 [Marco.Braun@it.htl-hl.ac.at](mailto:Marco.Braun@it.htl-hl.ac.at)
